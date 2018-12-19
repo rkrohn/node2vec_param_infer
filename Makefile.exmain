@@ -1,0 +1,16 @@
+#
+# Makefile for non-Microsoft compilers
+#
+
+all: $(MAIN)
+
+# COMPILE
+$(MAIN): $(MAIN).cpp $(DEPH) $(DEPCPP) $(DRVSNAP)/Snap.o 
+	$(CC) $(CXXFLAGS) -o ../$(MAIN) $(MAIN).cpp $(DEPCPP) $(DRVSNAP)/Snap.o -I$(DRVSNAP) -I$(DRVSNAPADV) -I$(DRVGLIB) -I$(DRVSNAPEXP) $(LDFLAGS) $(LIBS)
+
+$(EXSNAP)/Snap.o: 
+	make -C $(DRVSNAP)
+
+clean:
+	rm -f *.o  $(MAIN)  $(MAIN).exe
+	rm -rf Debug Release
