@@ -55,7 +55,6 @@ void ReadWalks(TStr& InFile, bool& Verbose, TVVec<TInt, int64>& WalksVV)
 
 		NumWalks = Tokens[0].GetInt();
 		MaxLen = Tokens[1].GetInt();
-		printf("Reading %lld walks, with max length %lld.\n", (long long)NumWalks, (long long)MaxLen);
 
 		//size the walk container
 		WalksVV = TVVec<TInt, int64>(NumWalks, MaxLen);
@@ -76,7 +75,7 @@ void ReadWalks(TStr& InFile, bool& Verbose, TVVec<TInt, int64>& WalksVV)
 
 			WalkCnt++;
 		}
-		if (Verbose) { printf("Read %lld walks from %s successfully\n", (long long)WalkCnt, InFile.CStr()); }
+		if (Verbose) { printf("Read %lld walks with max length %lld from %s\n", (long long)WalkCnt, (long long)MaxLen, InFile.CStr()); }
 	} 
 	catch (PExcept Except) 
 	{
@@ -197,7 +196,7 @@ void ReadInitialEmbeddings(TStr& InitInFile, TStr& DefaultEmbFile, TIntFltVH& In
 void WriteOutput(TStr& OutFile, TIntFltVH& EmbeddingsHV) 
 {
 	TFOut FOut(OutFile);
-	
+
 	bool First = 1;
 	for (int i = EmbeddingsHV.FFirstKeyId(); EmbeddingsHV.FNextKeyId(i);) 
 	{
@@ -241,13 +240,9 @@ int main(int argc, char* argv[])
 	if (InitInFile.Len() != 0 or DefaultEmbFile.Len() != 0)
 		ReadInitialEmbeddings(InitInFile, DefaultEmbFile, InitEmbeddingsHV, Sticky, StickyFactorsH, DefaultEmbeddingV, EmbeddingVariabilityV, Verbose, Dimensions);
 
-	//run word2vec: network, configuration parameters, objects for walks and embeddings
-	/*
-	LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
-  const int& WinSize, const int& Iter, const bool& Verbose,
-  TIntFltVH& EmbeddingsHV, TIntFltVH& InitEmbeddingsHV, TIntFltH& StickyFactorsH, const bool& CustomDefault, TFltV& DefaultEmbeddingV, TFltV& EmbeddingVariabilityV)
-  */
-
+	//run word2vec to get embeddings
+	
+	LearnEmbeddings(WalksVV, Dimensions, WinSize, Iter, Verbose, EmbeddingsHV, InitEmbeddingsHV, StickyFactorsH, CustomDefault, DefaultEmbeddingV, EmbeddingVariabilityV);
 
 	//dump results
 	WriteOutput(OutFile, EmbeddingsHV);
