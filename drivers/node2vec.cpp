@@ -255,15 +255,6 @@ int main(int argc, char* argv[])
 	ParseArgs(argc, argv, InFile, OutFile, Dimensions, WalkLen, NumWalks, WinSize,
 	Iter, Verbose, ParamP, ParamQ, Directed, Weighted, OutputWalks, InitInFile, DefaultEmbFile, Sticky, CustomDefault);
 
-	//for now, require the initial embeddings file - because that's what we're doing, and I don't care enough to do this clean right now
-	/*
-	if (InitInFile.Len() == 0)
-	{
-		printf("Must provide initial embeddings file with -ie option. Exiting.");
-		return 0;
-	}
-	*/
-
 	PWNet InNet = PWNet::New();		//network object
 	TIntFltVH EmbeddingsHV;			//embeddings object - hash int to vector of floats
 	TVVec <TInt, int64> WalksVV;	//walks?
