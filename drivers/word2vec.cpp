@@ -194,32 +194,10 @@ void ReadInitialEmbeddings(TStr& InitInFile, TStr& DefaultEmbFile, TIntFltVH& In
 }
 
 //dump embeddings (and optional walks) to output file
-void WriteOutput(TStr& OutFile, TIntFltVH& EmbeddingsHV, TVVec<TInt, int64>& WalksVV,
- bool& OutputWalks) 
+void WriteOutput(TStr& OutFile, TIntFltVH& EmbeddingsHV) 
 {
-	printf("function\n");
 	TFOut FOut(OutFile);
-	if (OutputWalks) 
-	{
-		printf("outputting walks\n");
-		for (int64 i = 0; i < WalksVV.GetXDim(); i++) 
-		{
-			for (int64 j = 0; j < WalksVV.GetYDim(); j++) 
-			{
-				FOut.PutInt(WalksVV(i,j));
-				if(j+1==WalksVV.GetYDim()) 
-				{
-					FOut.PutLn();
-				} 
-				else 
-				{
-					FOut.PutCh(' ');
-				}
-			}
-		}
-		return;
-	}
-	/*
+	
 	bool First = 1;
 	for (int i = EmbeddingsHV.FFirstKeyId(); EmbeddingsHV.FNextKeyId(i);) 
 	{
@@ -239,7 +217,6 @@ void WriteOutput(TStr& OutFile, TIntFltVH& EmbeddingsHV, TVVec<TInt, int64>& Wal
 		}
 		FOut.PutLn();
 	}
-	*/
 }
 
 int main(int argc, char* argv[])
@@ -273,8 +250,7 @@ int main(int argc, char* argv[])
 
 
 	//dump results
-	bool temp = true;
-	WriteOutput(OutFile, EmbeddingsHV, WalksVV, temp);
+	WriteOutput(OutFile, EmbeddingsHV);
 	printf("Results written to output file.\n");
 	return 0;
 }
