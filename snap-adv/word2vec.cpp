@@ -327,9 +327,10 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 			//update hidden weight
 			for (int i = 0; i < Dimensions; i++)
 			{
-				if (SynPos(CurrWord,i) + CurrSticky * Neu1eV[i] > 0)
+				if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
 					SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];		//this is where the embedding gets updated
 																		//but only update if result is non-negative
+					//printf("add %f to word %d\n", CurrSticky * Neu1eV[i], CurrWord);
 			}
 		}
 		WordCntAll++;		//finished current word in walk, update counter
@@ -361,11 +362,13 @@ void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 			else
 			{
 				RnmH.AddDat(WalksVV(i,j),NNodes);
+				//printf("%d -> %d\n", WalksVV(i,j), NNodes);
 				RnmBackH.AddDat(NNodes,WalksVV(i, j));
 				WalksVV(i, j) = NNodes++;		//reset to newly assigned hash key, move to next
 			}
 		}
 	}
+	printf("\n");
 
 	//learn vocabulary from random walks
 	TIntV Vocab(NNodes);		//arry-type container, one space for each "word" (node), holds frequencies
@@ -438,7 +441,6 @@ void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 			//this updates embeddings based on the current walk given to the function
 		}
 	}
-	if (Verbose) { printf("\nLearning complete\n"); fflush(stdout); }
 
 	//loop node rows
 	for (int64 i = 0; i < SynPos.GetXDim(); i++)
@@ -452,4 +454,5 @@ void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 		}
 		EmbeddingsHV.AddDat(RnmBackH.GetDat(i), CurrV);	//add this word's embeddings to overall
 	}
+	if (Verbose) { printf("\nLearning complete\n"); fflush(stdout); }
 }
