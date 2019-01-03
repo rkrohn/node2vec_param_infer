@@ -240,8 +240,7 @@ int main(int argc, char* argv[])
 	if (InitInFile.Len() != 0 or DefaultEmbFile.Len() != 0)
 		ReadInitialEmbeddings(InitInFile, DefaultEmbFile, InitEmbeddingsHV, Sticky, StickyFactorsH, DefaultEmbeddingV, EmbeddingVariabilityV, Verbose, Dimensions);
 
-	//run word2vec to get embeddings
-	
+	//run word2vec to get embeddings	
 	LearnEmbeddings(WalksVV, Dimensions, WinSize, Iter, Verbose, EmbeddingsHV, InitEmbeddingsHV, StickyFactorsH, CustomDefault, DefaultEmbeddingV, EmbeddingVariabilityV);
 
 	//dump results
