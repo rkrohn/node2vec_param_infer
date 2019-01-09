@@ -2,15 +2,19 @@
 # Makefile for non-Microsoft compilers
 #
 
-all: $(MAIN)
+all: ../$(MAINNODE) ../$(MAINWORD)
 
 # COMPILE
-$(MAIN): $(MAIN).cpp $(DEPH) $(DEPCPP) $(DRVSNAP)/Snap.o 
-	$(CC) $(CXXFLAGS) -o ../$(MAIN) $(MAIN).cpp $(DEPCPP) $(DRVSNAP)/Snap.o -I$(DRVSNAP) -I$(DRVSNAPADV) -I$(DRVGLIB) -I$(DRVSNAPEXP) $(LDFLAGS) $(LIBS)
+../$(MAINNODE): $(MAINNODE).cpp $(DEPHNODE) $(DEPCPPNODE) $(DRVSNAP)/Snap.o 
+	$(CC) $(CXXFLAGS) -o ../$(MAINNODE) $(MAINNODE).cpp $(DEPCPPNODE) $(DRVSNAP)/Snap.o -I$(DRVSNAP) -I$(DRVSNAPADV) -I$(DRVGLIB) -I$(DRVSNAPEXP) $(LDFLAGS) $(LIBS)
+
+../$(MAINWORD): $(MAINWORD).cpp $(DEPHWORD) $(DEPCPPWORD) $(DRVSNAP)/Snap.o 
+	$(CC) $(CXXFLAGS) -o ../$(MAINWORD) $(MAINWORD).cpp $(DEPCPPWORD) $(DRVSNAP)/Snap.o -I$(DRVSNAP) -I$(DRVSNAPADV) -I$(DRVGLIB) -I$(DRVSNAPEXP) $(LDFLAGS) $(LIBS)
 
 $(EXSNAP)/Snap.o: 
 	make -C $(DRVSNAP)
 
 clean:
-	rm -f *.o  $(MAIN)  $(MAIN).exe
+	rm -f *.o  $(MAINNODE)  $(MAINNODE).exe
+	rm -f *.o  $(MAINWORD)  $(MAINWORD).exe
 	rm -rf Debug Release
