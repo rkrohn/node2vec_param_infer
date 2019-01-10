@@ -65,7 +65,15 @@ void ReadWalks(TStr& InFile, bool& Verbose, TVVec<TInt, int64>& WalksVV)
 		//read remaining lines, one per walk
 		while (!FIn.Eof()) 
 		{
-			FIn.GetNextLn(Line);
+			FIn.GetNextLn(Line);	
+
+			//if entire line is comment, move to next
+			if (Line[0] == '#')
+				continue;
+
+			//split out comments
+			TStr Comment;
+			Line.SplitOnCh(Line,'#',Comment);
 			Line.SplitOnWs(Tokens);
 
 			//loop tokens (words/nodes)
@@ -76,7 +84,8 @@ void ReadWalks(TStr& InFile, bool& Verbose, TVVec<TInt, int64>& WalksVV)
 				WalksVV.PutXY(WalkCnt, i, word);
 			}
 
-			WalkCnt++;
+			if (Tokens.Len() != 0)
+				WalkCnt++;
 		}
 		if (Verbose) { printf("Read %lld walks with max length %lld from %s\n", (long long)WalkCnt, (long long)MaxLen, InFile.CStr()); }
 	} 
