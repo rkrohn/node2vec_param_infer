@@ -139,6 +139,8 @@ void InitNegEmb(TIntV& Vocab, const int& Dimensions, TVVec<TFlt, int64>& SynNeg)
 //this is the hidden layer, aka the final embeddings
 void InitPosEmb(TIntV& Vocab, const int& Dimensions, TRnd& Rnd, TVVec<TFlt, int64>& SynPos, TIntFltVH& InitEmbeddingsHV, const bool& CustomDefault, TFltV& DefaultEmbeddingV, TFltV& EmbeddingVariabilityV, TIntIntH& RnmBackH)
 {
+	float junk = Rnd.GetUniDev();	//prime the randomizer - this does seem to make a difference!
+
 	//printf("Initializing embeddings...\n");
 	SynPos = TVVec<TFlt, int64>(Vocab.Len(),Dimensions);
 
@@ -168,7 +170,7 @@ void InitPosEmb(TIntV& Vocab, const int& Dimensions, TRnd& Rnd, TVVec<TFlt, int6
 				//default based on values given, +/- random specified percentage delta
 				//first part gets random value 0-1, multiply to get value 0-2, subtract to get -1 to 1
 				//second part computes max variation for this field: variability percentage * default value
-				SynPos(i,j) = DefaultEmbeddingV[j] + (2 * Rnd.GetUniDev() - 1.0) * (EmbeddingVariabilityV[j] * DefaultEmbeddingV[j]);		
+				SynPos(i,j) = DefaultEmbeddingV[j] + ((2 * Rnd.GetUniDev() - 1.0) * (EmbeddingVariabilityV[j] * DefaultEmbeddingV[j]));
 				
 			}
 			//no initial value and no custom defaults, use standard word2vec initialization behavior
@@ -357,6 +359,7 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 					{
 						if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
 							SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];	//embedding update
+						printf("%lf\n", CurrSticky * Neu1eV[i]);
 					}
 				}
 			}
@@ -459,7 +462,7 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 					if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
 						SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];		//this is where the embedding gets updated
 																			//but only update if result is non-negative
-						//printf("add %f to word %d\n", CurrSticky * Neu1eV[i], CurrWord);
+						printf("add %f to word %d\n", CurrSticky * Neu1eV[i], CurrWord);
 				}
 			}
 		}
