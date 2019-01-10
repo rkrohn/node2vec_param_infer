@@ -336,8 +336,28 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 					//printf("%d ", a);
 
 					int64 CurrWord = WalkV[CurrWordI];		//pull word from walk corresponding to this position
+
+					//does this word/node have a sticky factor? if so, use it
+					//fetch initial embeddings vector for this word
+					int64 orig_id = RnmBackH.GetDat(CurrWord);		//get original id for CurrWord
+					TFlt CurrSticky;
+					if (StickyFactorsH.IsKey(orig_id))
+					{
+						CurrSticky = StickyFactorsH.GetDat(orig_id);		//use cached sticky factor
+						//printf("%d -> %d: %f\n", orig_id, CurrWord, CurrSticky);
+					}
+					else
+					{
+						CurrSticky = 1.0;		//no sticky provided, use 1 for full adjustment effect
+						//printf("%d -> %d: no sticky, use 1.0\n", orig_id, CurrWord);
+					}
+
+					//update hidden weight
 					for (int i = 0; i < Dimensions; i++)
-						SynPos(CurrWord,i) += Neu1eV[i];
+					{
+						if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
+							SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];	//embedding update
+					}
 				}
 			}
 		}
