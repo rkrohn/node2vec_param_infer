@@ -4,7 +4,7 @@
 ///Learns embeddings using SGD, Skip-gram with negative sampling.
 void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
   const int& WinSize, const int& Iter, const bool& Verbose,
-  TIntFltVH& EmbeddingsHV, TIntFltVH& InitEmbeddingsHV, TIntFltH& StickyFactorsH, const bool& CustomDefault, TFltV& DefaultEmbeddingV, TFltV& EmbeddingVariabilityV);
+  TIntFltVH& EmbeddingsHV, TIntFltVH& InitEmbeddingsHV, TIntFltH& StickyFactorsH, const bool& CustomDefault, TFltV& DefaultEmbeddingV, TFltV& EmbeddingVariabilityV, const bool& Cbow);
 
 //Max x for e^x. Value taken from original word2vec code.
 const int MaxExp = 6;

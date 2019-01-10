@@ -8,7 +8,7 @@
 
 void ParseArgs(int& argc, char* argv[], TStr& InFile, TStr& OutFile,
 	int& Dimensions, int& WinSize, int& Iter,
-	bool& Verbose, TStr& InitInFile, TStr& DefaultEmbFile, bool& Sticky, bool& CustomDefault) 
+	bool& Verbose, TStr& InitInFile, TStr& DefaultEmbFile, bool& Sticky, bool& CustomDefault, bool& Cbow) 
 {
 	Env = TEnv(argc, argv, TNotify::StdNotify);
 	Env.PrepArgs(TStr::Fmt("\nAn algorithmic framework for representational learning on graphs."));
@@ -26,6 +26,9 @@ void ParseArgs(int& argc, char* argv[], TStr& InFile, TStr& OutFile,
 	"Number of epochs in SGD. Default is 1");
 	Verbose = Env.IsArgStr("-v", "Verbose output.");
 	Sticky = Env.IsArgStr("-s", "Using \"sticky\" factor.");
+	Cbow = Env.IsArgStr("-cbow", "Using CBOW for model training.");
+	if (Cbow == false)
+		printf("Using skip-gram for model training.");
 	if (InitInFile.Len() != 0)
 		printf("Using node-specific initial embeddings.\n");
 	if (DefaultEmbFile.Len() != 0)
@@ -222,11 +225,11 @@ int main(int argc, char* argv[])
 {
 	TStr InFile, InitInFile, DefaultEmbFile, OutFile;
 	int Dimensions, WinSize, Iter;
-	bool Verbose, Sticky, CustomDefault;
+	bool Verbose, Sticky, CustomDefault, Cbow;
 
 	//parse command line args
 	ParseArgs(argc, argv, InFile, OutFile, Dimensions, WinSize,
-	Iter, Verbose, InitInFile, DefaultEmbFile, Sticky, CustomDefault);
+	Iter, Verbose, InitInFile, DefaultEmbFile, Sticky, CustomDefault, Cbow);
 
 	TIntFltVH EmbeddingsHV;			//embeddings object - hash int to vector of floats
 	TVVec <TInt, int64> WalksVV;	//walks
@@ -241,10 +244,10 @@ int main(int argc, char* argv[])
 		ReadInitialEmbeddings(InitInFile, DefaultEmbFile, InitEmbeddingsHV, Sticky, StickyFactorsH, DefaultEmbeddingV, EmbeddingVariabilityV, Verbose, Dimensions);
 
 	//run word2vec to get embeddings	
-	LearnEmbeddings(WalksVV, Dimensions, WinSize, Iter, Verbose, EmbeddingsHV, InitEmbeddingsHV, StickyFactorsH, CustomDefault, DefaultEmbeddingV, EmbeddingVariabilityV);
+	LearnEmbeddings(WalksVV, Dimensions, WinSize, Iter, Verbose, EmbeddingsHV, InitEmbeddingsHV, StickyFactorsH, CustomDefault, DefaultEmbeddingV, EmbeddingVariabilityV, Cbow);
 
 	//dump results
 	WriteOutput(OutFile, EmbeddingsHV);
-	printf("Results written to output file.\n");
+	printf("Results written to output file %s\n", OutFile.CStr());
 	return 0;
 }

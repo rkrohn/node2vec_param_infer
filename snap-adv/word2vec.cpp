@@ -182,17 +182,17 @@ void InitPosEmb(TIntV& Vocab, const int& Dimensions, TRnd& Rnd, TVVec<TFlt, int6
 	}
 }
 
-//iterative training? called iter * #walks times
+//iterative training - called iter * #walks times
+//uses skipgram method with negative sampling
 void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 		const int& WinSize, const int& Iter, const bool& Verbose,
 		TIntV& KTable, TFltV& UTable, int64& WordCntAll, TFltV& ExpTable,
 		double& Alpha, int64 CurrWalk, TRnd& Rnd,
-		TVVec<TFlt, int64>& SynNeg, TVVec<TFlt, int64>& SynPos, TIntFltH& StickyFactorsH, TIntIntH& RnmBackH)
+		TVVec<TFlt, int64>& SynNeg, TVVec<TFlt, int64>& SynPos, TIntFltH& StickyFactorsH, TIntIntH& RnmBackH, const bool& Cbow)
 		{
-	//neuron layers: one is internal embeddings, one is the output later, but I'm not sure which is which yet
-	//HAHA! one of them isn't even used - kill it with fire!
-	//TFltV Neu1V(Dimensions);
-	TFltV Neu1eV(Dimensions);
+	//neuron layers
+	TFltV Neu1V(Dimensions);	//output layer - only used by CBOW
+	TFltV Neu1eV(Dimensions);	//internal embeddings
 
 	int64 AllWords = WalksVV.GetXDim()*WalksVV.GetYDim();	//number of walks * length of walks
 
@@ -229,108 +229,218 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 		//init neuron vectors to 0 across all dimensions
 		for (int i = 0; i < Dimensions; i++)
 		{
-			//Neu1V[i] = 0;
+			Neu1V[i] = 0;
 			Neu1eV[i] = 0;
 		}
 
 		int Offset = Rnd.GetUniDevInt() % WinSize;		//draw random offset, from 0 to WinSize-1
-														//this is the amount we will "shrink" the window size by
+														//this is the amount we will "shrink" the window size
 		//printf("   Offset %d : ", Offset);
-		//a is the offset into the current window, relative to the window start
-		//window start is defined by the randomly-drawn Offset - which defines how many words at the start of the window to skip
-		//(a is NOT a walk/sentence index - relative to window)
-		for (int a = Offset; a < WinSize * 2 + 1 - Offset; a++)
+
+		//train using CBOW
+		if (Cbow)
 		{
-			if (a == WinSize) { continue; }		//if a equals context size, would process current word as neighbor, skip
+			int cw = 0;
 
-			//convert window index to walk index
-			int64 CurrWordI = WordI - WinSize + a;	//current pos = current walk position - context size + a
-			//if this position beyond walk, skip
-			if (CurrWordI < 0){ continue; }
-			if (CurrWordI >= WalkV.Len()){ continue; }
-
-			//printf("%d ", a);
-
-			int64 CurrWord = WalkV[CurrWordI];		//pull word from walk corresponding to this position
-			for (int i = 0; i < Dimensions; i++) { Neu1eV[i] = 0; }		//reset neuron
-
-			//negative sampling: each training sample only modifies a small percentage of the weights, instead of all of them
-			//this sample of words is selected using the unigram distribution previously computed)
-			//NegSamN = number of words to update
-			//add one to NegSamN because use one iteration to train the positive sample (current center word)
-			for (int j = 0; j < NegSamN+1; j++)		
+			for (int a = Offset; a < WinSize * 2 + 1 - Offset; a++)
 			{
-				int64 Target, Label;
-				//first loop: set target equal to current word, label to 1
-				//train the positive sample, always
-				if (j == 0)
+				if (a == WinSize) { continue; }		//if a equals context size, would process current word as neighbor, skip
+				
+				//convert window index to walk index
+				int64 CurrWordI = WordI - WinSize + a;	//current pos = current walk position - context size + a
+				//if this position beyond walk, skip
+				if (CurrWordI < 0){ continue; }
+				if (CurrWordI >= WalkV.Len()){ continue; }
+
+				int64 CurrWord = WalkV[CurrWordI];		//pull word from walk corresponding to this position
+
+				//reset neuron
+				for (int i = 0; i < Dimensions; i++)
+					Neu1V[i] += SynPos(CurrWord,i);
+				cw++;
+			}
+
+			if (cw) 
+			{
+				for (int i = 0; i < Dimensions; i++)
+					Neu1V[i] /= cw;
+
+				//negative sampling: each training sample only modifies a small percentage of the weights, instead of all of them
+				//this sample of words is selected using the unigram distribution previously computed)
+				//NegSamN = number of words to update
+				//add one to NegSamN because use one iteration to train the positive sample (current center word)
+				for (int j = 0; j < NegSamN+1; j++)		
 				{
-					Target = Word;
-					Label = 1;		//label is 1 in output layer
-				} 
-				//other iterations, train a negative sample
+					int64 Target, Label;
+					//first loop: set target equal to current word, label to 1
+					//train the positive sample, always
+					if (j == 0)
+					{
+						Target = Word;
+						Label = 1;		//label is 1 in output layer
+					} 
+					//other iterations, train a negative sample
+					else
+					{
+						Target = RndUnigramInt(KTable, UTable, Rnd);	//draw random word
+						if (Target == Word) { continue; }	//if drew the current walk word, next iteration - don't use as negative sample!
+						Label = 0;		//target not same as current word, label for this word is 0 (negative sample)
+					}
+
+					//Target is the word to update the model for
+					//Label indicates whether Target is a positive (1) or negative (0) example
+
+					//for current neighbor word, multiply their synpos * synneg, and sum all products
+					//compute dot-product between input word weights (SynPos) and output word weights (SynNeg)
+					double Product = 0;
+					for (int i = 0; i < Dimensions; i++)
+					{
+						Product += Neu1V[i] * SynNeg(Target,i);
+					}
+
+					//compute the error at the output, store in Grad
+					//subtract network output from desired output, and multiply by learning rate
+					double Grad;                     //Gradient multiplied by learning rate
+					if (Product > MaxExp) { Grad = (Label - 1) * Alpha; }
+					else if (Product < -MaxExp) { Grad = Label * Alpha; }
+					else
+					{
+						double Exp = ExpTable[static_cast<int>(Product*ExpTablePrecision)+TableSize/2];
+						Grad = (Label - 1 + 1 / (1 + Exp)) * Alpha;
+					}
+
+					//update vectors based on gradient (gradient calculation?)
+					for (int i = 0; i < Dimensions; i++)
+					{
+						//multiply error by output layer weights, accumulate over all negative samples
+						Neu1eV[i] += Grad * SynNeg(Target,i);
+						//update outer layer weights: multiply output error by hidden layer weights	
+						SynNeg(Target,i) += Grad * Neu1V[i];
+					}
+				}
+
+				// hidden -> in
+				//a is the offset into the current window, relative to the window start
+				//window start is defined by the randomly-drawn Offset - which defines how many words at the start of the window to skip
+				//(a is NOT a walk/sentence index - relative to window)
+				for (int a = Offset; a < WinSize * 2 + 1 - Offset; a++)
+				{
+					if (a == WinSize) { continue; }		//if a equals context size, would process current word as neighbor, skip
+
+					//convert window index to walk index
+					int64 CurrWordI = WordI - WinSize + a;	//current pos = current walk position - context size + a
+					//if this position beyond walk, skip
+					if (CurrWordI < 0){ continue; }
+					if (CurrWordI >= WalkV.Len()){ continue; }
+
+					//printf("%d ", a);
+
+					int64 CurrWord = WalkV[CurrWordI];		//pull word from walk corresponding to this position
+					for (int i = 0; i < Dimensions; i++)
+						SynPos(CurrWord,i) += Neu1eV[i];
+				}
+			}
+		}
+
+		//train using skip-gram
+		else		//cbow == False
+		{
+			//a is the offset into the current window, relative to the window start
+			//window start is defined by the randomly-drawn Offset - which defines how many words at the start of the window to skip
+			//(a is NOT a walk/sentence index - relative to window)
+			for (int a = Offset; a < WinSize * 2 + 1 - Offset; a++)
+			{
+				if (a == WinSize) { continue; }		//if a equals context size, would process current word as neighbor, skip
+
+				//convert window index to walk index
+				int64 CurrWordI = WordI - WinSize + a;	//current pos = current walk position - context size + a
+				//if this position beyond walk, skip
+				if (CurrWordI < 0){ continue; }
+				if (CurrWordI >= WalkV.Len()){ continue; }
+
+				//printf("%d ", a);
+
+				int64 CurrWord = WalkV[CurrWordI];		//pull word from walk corresponding to this position
+				for (int i = 0; i < Dimensions; i++) { Neu1eV[i] = 0; }		//reset neuron
+
+				//negative sampling: each training sample only modifies a small percentage of the weights, instead of all of them
+				//this sample of words is selected using the unigram distribution previously computed)
+				//NegSamN = number of words to update
+				//add one to NegSamN because use one iteration to train the positive sample (current center word)
+				for (int j = 0; j < NegSamN+1; j++)		
+				{
+					int64 Target, Label;
+					//first loop: set target equal to current word, label to 1
+					//train the positive sample, always
+					if (j == 0)
+					{
+						Target = Word;
+						Label = 1;		//label is 1 in output layer
+					} 
+					//other iterations, train a negative sample
+					else
+					{
+						Target = RndUnigramInt(KTable, UTable, Rnd);	//draw random word
+						if (Target == Word) { continue; }	//if drew the current walk word, next iteration - don't use as negative sample!
+						Label = 0;		//target not same as current word, label for this word is 0 (negative sample)
+					}
+
+					//Target is the word to update the model for
+					//Label indicates whether Target is a positive (1) or negative (0) example
+
+					//for current neighbor word, multiply their synpos * synneg, and sum all products
+					//compute dot-product between input word weights (SynPos) and output word weights (SynNeg)
+					double Product = 0;
+					for (int i = 0; i < Dimensions; i++)
+					{
+						Product += SynPos(CurrWord,i) * SynNeg(Target,i);
+					}
+
+					//compute the error at the output, store in Grad
+					//subtract network output from desired output, and multiply by learning rate
+					double Grad;                     //Gradient multiplied by learning rate
+					if (Product > MaxExp) { Grad = (Label - 1) * Alpha; }
+					else if (Product < -MaxExp) { Grad = Label * Alpha; }
+					else
+					{
+						double Exp = ExpTable[static_cast<int>(Product*ExpTablePrecision)+TableSize/2];
+						Grad = (Label - 1 + 1 / (1 + Exp)) * Alpha;
+					}
+
+					//update vectors based on gradient (gradient calculation?)
+					for (int i = 0; i < Dimensions; i++)
+					{
+						//multiply error by output layer weights, accumulate over all negative samples
+						Neu1eV[i] += Grad * SynNeg(Target,i);
+						//update outer layer weights: multiply output error by hidden layer weights	
+						SynNeg(Target,i) += Grad * SynPos(CurrWord,i);	
+					}
+				}
+
+				//finished negative sampling for current neighbor word, update it's synpos
+				//updates hidden weights after hidden layer gradients for all negative samples have been accumulated
+				//does this word/node have a sticky factor? if so, use it
+				//fetch initial embeddings vector for this word
+				int64 orig_id = RnmBackH.GetDat(CurrWord);		//get original id for CurrWord
+				TFlt CurrSticky;
+				if (StickyFactorsH.IsKey(orig_id))
+				{
+					CurrSticky = StickyFactorsH.GetDat(orig_id);		//use cached sticky factor
+					//printf("%d -> %d: %f\n", orig_id, CurrWord, CurrSticky);
+				}
 				else
 				{
-					Target = RndUnigramInt(KTable, UTable, Rnd);	//draw random word
-					if (Target == Word) { continue; }	//if drew the current walk word, next iteration - don't use as negative sample!
-					Label = 0;		//target not same as current word, label for this word is 0 (negative sample)
+					CurrSticky = 1.0;		//no sticky provided, use 1 for full adjustment effect
+					//printf("%d -> %d: no sticky, use 1.0\n", orig_id, CurrWord);
 				}
-
-				//Target is the word to update the model for
-				//Label indicates whether Target is a positive (1) or negative (0) example
-
-				//for current neighbor word, multiply their synpos * synneg, and sum all products
-				//compute dot-product between input word weights (SynPos) and output word weights (SynNeg)
-				double Product = 0;
+				//update hidden weight
 				for (int i = 0; i < Dimensions; i++)
 				{
-					Product += SynPos(CurrWord,i) * SynNeg(Target,i);
+					if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
+						SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];		//this is where the embedding gets updated
+																			//but only update if result is non-negative
+						//printf("add %f to word %d\n", CurrSticky * Neu1eV[i], CurrWord);
 				}
-
-				//compute the error at the output, store in Grad
-				//subtract network output from desired output, and multiply by learning rate
-				double Grad;                     //Gradient multiplied by learning rate
-				if (Product > MaxExp) { Grad = (Label - 1) * Alpha; }
-				else if (Product < -MaxExp) { Grad = Label * Alpha; }
-				else
-				{
-					double Exp = ExpTable[static_cast<int>(Product*ExpTablePrecision)+TableSize/2];
-					Grad = (Label - 1 + 1 / (1 + Exp)) * Alpha;
-				}
-
-				//update vectors based on gradient (gradient calculation?)
-				for (int i = 0; i < Dimensions; i++)
-				{
-					//multiply error by output layer weights, accumulate over all negative samples
-					Neu1eV[i] += Grad * SynNeg(Target,i);
-					//update outer layer weights: multiply output error by hidden layer weights	
-					SynNeg(Target,i) += Grad * SynPos(CurrWord,i);	
-				}
-			}
-
-			//finished negative sampling for current neighbor word, update it's synpos
-			//updates hidden weights after hidden layer gradients for all negative samples have been accumulated
-			//does this word/node have a sticky factor? if so, use it
-			//fetch initial embeddings vector for this word
-			int64 orig_id = RnmBackH.GetDat(CurrWord);		//get original id for CurrWord
-			TFlt CurrSticky;
-			if (StickyFactorsH.IsKey(orig_id))
-			{
-				CurrSticky = StickyFactorsH.GetDat(orig_id);		//use cached sticky factor
-				//printf("%d -> %d: %f\n", orig_id, CurrWord, CurrSticky);
-			}
-			else
-			{
-				CurrSticky = 1.0;		//no sticky provided, use 1 for full adjustment effect
-				//printf("%d -> %d: no sticky, use 1.0\n", orig_id, CurrWord);
-			}
-			//update hidden weight
-			for (int i = 0; i < Dimensions; i++)
-			{
-				if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
-					SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];		//this is where the embedding gets updated
-																		//but only update if result is non-negative
-					//printf("add %f to word %d\n", CurrSticky * Neu1eV[i], CurrWord);
 			}
 		}
 		WordCntAll++;		//finished current word in walk, update counter
@@ -342,7 +452,7 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 //note that the walks may contain a 0, which indicates no node travel there - why it works that way, I do not know
 void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 	const int& WinSize, const int& Iter, const bool& Verbose,
-	TIntFltVH& EmbeddingsHV, TIntFltVH& InitEmbeddingsHV, TIntFltH& StickyFactorsH, const bool& CustomDefault, TFltV& DefaultEmbeddingV, TFltV& EmbeddingVariabilityV)
+	TIntFltVH& EmbeddingsHV, TIntFltVH& InitEmbeddingsHV, TIntFltH& StickyFactorsH, const bool& CustomDefault, TFltV& DefaultEmbeddingV, TFltV& EmbeddingVariabilityV, const bool& Cbow)
 	{
 	TIntIntH RnmH;		//hash type for mapping, given node id -> consecutive node id
 	TIntIntH RnmBackH;	//reverse hash, assigned consecutive node id -> given node id
@@ -437,7 +547,7 @@ void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 			//ktable, unigram table, wordcount, exptable, learning rate alpha, randomizer, 
 			//synneg (all 0, one per embedding pos), synpos (random values, one per embedding val)
 			TrainModel(WalksVV, Dimensions, WinSize, Iter, Verbose, KTable, UTable,
-			 WordCntAll, ExpTable, Alpha, i, Rnd, SynNeg, SynPos, StickyFactorsH, RnmBackH); 
+			 WordCntAll, ExpTable, Alpha, i, Rnd, SynNeg, SynPos, StickyFactorsH, RnmBackH, Cbow); 
 			//this updates embeddings based on the current walk given to the function
 		}
 	}

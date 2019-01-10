@@ -9,7 +9,7 @@
 void ParseArgs(int& argc, char* argv[], TStr& InFile, TStr& OutFile,
 	int& Dimensions, int& WalkLen, int& NumWalks, int& WinSize, int& Iter,
 	bool& Verbose, double& ParamP, double& ParamQ, bool& Directed, bool& Weighted,
-	bool& OutputWalks, TStr& InitInFile, TStr& DefaultEmbFile, bool& Sticky, bool& CustomDefault) 
+	bool& OutputWalks, TStr& InitInFile, TStr& DefaultEmbFile, bool& Sticky, bool& CustomDefault, bool& Cbow) 
 {
 	Env = TEnv(argc, argv, TNotify::StdNotify);
 	Env.PrepArgs(TStr::Fmt("\nAn algorithmic framework for representational learning on graphs."));
@@ -38,6 +38,9 @@ void ParseArgs(int& argc, char* argv[], TStr& InFile, TStr& OutFile,
 	Weighted = Env.IsArgStr("-w", "Graph is weighted.");
 	Sticky = Env.IsArgStr("-s", "Using \"sticky\" factor.");
 	OutputWalks = Env.IsArgStr("-ow", "Output random walks instead of embeddings.");
+	Cbow = Env.IsArgStr("-cbow", "Using CBOW for model training.");
+	if (Cbow == false)
+		printf("Using skip-gram for model training.");
 	if (InitInFile.Len() != 0)
 		printf("Using node-specific initial embeddings.\n");
 	if (DefaultEmbFile.Len() != 0)
@@ -249,11 +252,11 @@ int main(int argc, char* argv[])
 	TStr InFile, InitInFile, DefaultEmbFile, OutFile;
 	int Dimensions, WalkLen, NumWalks, WinSize, Iter;
 	double ParamP, ParamQ;
-	bool Directed, Weighted, Verbose, OutputWalks, Sticky, CustomDefault;
+	bool Directed, Weighted, Verbose, OutputWalks, Sticky, CustomDefault, Cbow;
 
 	//parse command line args
 	ParseArgs(argc, argv, InFile, OutFile, Dimensions, WalkLen, NumWalks, WinSize,
-	Iter, Verbose, ParamP, ParamQ, Directed, Weighted, OutputWalks, InitInFile, DefaultEmbFile, Sticky, CustomDefault);
+	Iter, Verbose, ParamP, ParamQ, Directed, Weighted, OutputWalks, InitInFile, DefaultEmbFile, Sticky, CustomDefault, Cbow);
 
 	PWNet InNet = PWNet::New();		//network object
 	TIntFltVH EmbeddingsHV;			//embeddings object - hash int to vector of floats
@@ -270,7 +273,7 @@ int main(int argc, char* argv[])
 
 	//run node2vec: network, configuration parameters, objects for walks and embeddings
 	node2vec(InNet, ParamP, ParamQ, Dimensions, WalkLen, NumWalks, WinSize, Iter, 
-	Verbose, OutputWalks, WalksVV, EmbeddingsHV, InitEmbeddingsHV, StickyFactorsH, DefaultEmbeddingV, EmbeddingVariabilityV, CustomDefault);
+	Verbose, OutputWalks, WalksVV, EmbeddingsHV, InitEmbeddingsHV, StickyFactorsH, DefaultEmbeddingV, EmbeddingVariabilityV, CustomDefault, Cbow);
 
 	//dump results
 	WriteOutput(OutFile, EmbeddingsHV, WalksVV, OutputWalks);
