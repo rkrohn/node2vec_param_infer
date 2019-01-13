@@ -141,7 +141,7 @@ void InitPosEmb(TIntV& Vocab, const int& Dimensions, TRnd& Rnd, TVVec<TFlt, int6
 {
 	float junk = Rnd.GetUniDev();	//prime the randomizer - this does seem to make a difference!
 
-	//printf("Initializing embeddings...\n");
+	printf("Initializing embeddings...\n");
 	SynPos = TVVec<TFlt, int64>(Vocab.Len(),Dimensions);
 
 	for (int64 i = 0; i < SynPos.GetXDim(); i++)	//loop nodes/words
@@ -171,13 +171,15 @@ void InitPosEmb(TIntV& Vocab, const int& Dimensions, TRnd& Rnd, TVVec<TFlt, int6
 				//first part gets random value 0-1, multiply to get value 0-2, subtract to get -1 to 1
 				//second part computes max variation for this field: variability percentage * default value
 				SynPos(i,j) = DefaultEmbeddingV[j] + ((2 * Rnd.GetUniDev() - 1.0) * (EmbeddingVariabilityV[j] * DefaultEmbeddingV[j]));
+				printf("   %d %lf\n", orig_id, SynPos(i,j));
 				
 			}
 			//no initial value and no custom defaults, use standard word2vec initialization behavior
 			else
 			{
 				//random values, ranging -.5/dimensions to 0.5/dimensions (all near 0)
-				SynPos(i,j) =(Rnd.GetUniDev()-0.5)/Dimensions;	
+				SynPos(i,j) =(Rnd.GetUniDev()-0.5)/Dimensions;
+				printf("   %d %lf\n", orig_id, SynPos(i,j));	
 			}
 		}
 		//printf("\n");
@@ -222,8 +224,9 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 				fflush(stdout);
 			}
 			//update alpha
-			Alpha = StartAlpha * (1 - WordCntAll / static_cast<double>(Iter * AllWords + 1));
-			if ( Alpha < StartAlpha * 0.0001 ) { Alpha = StartAlpha * 0.0001; }
+			double start = ((Cbow) ? StartAlphaCBOW : StartAlphaSkip);
+			Alpha = start * (1 - WordCntAll / static_cast<double>(Iter * AllWords + 1));
+			if ( Alpha < start * 0.0001 ) { Alpha = start * 0.0001; }
 		}
 
 		int64 Word = WalkV[WordI];			//pull current word from walk
@@ -271,53 +274,59 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 				//this sample of words is selected using the unigram distribution previously computed)
 				//NegSamN = number of words to update
 				//add one to NegSamN because use one iteration to train the positive sample (current center word)
-				for (int j = 0; j < NegSamN+1; j++)		
+				if (NegSamN > 0)
 				{
-					int64 Target, Label;
-					//first loop: set target equal to current word, label to 1
-					//train the positive sample, always
-					if (j == 0)
+					for (int j = 0; j < NegSamN+1; j++)		
 					{
-						Target = Word;
-						Label = 1;		//label is 1 in output layer
-					} 
-					//other iterations, train a negative sample
-					else
-					{
-						Target = RndUnigramInt(KTable, UTable, Rnd);	//draw random word
-						if (Target == Word) { continue; }	//if drew the current walk word, next iteration - don't use as negative sample!
-						Label = 0;		//target not same as current word, label for this word is 0 (negative sample)
-					}
+						int64 Target, Label;
+						//first loop: set target equal to current word, label to 1
+						//train the positive sample, always
+						if (j == 0)
+						{
+							Target = Word;
+							Label = 1;		//label is 1 in output layer
+						} 
+						//other iterations, train a negative sample
+						else
+						{
+							Target = RndUnigramInt(KTable, UTable, Rnd);	//draw random word
+							if (Target == Word) { continue; }	//if drew the current walk word, next iteration - don't use as negative sample!
+							Label = 0;		//target not same as current word, label for this word is 0 (negative sample)
+						}
 
-					//Target is the word to update the model for
-					//Label indicates whether Target is a positive (1) or negative (0) example
+						//Target is the word to update the model for
+						//Label indicates whether Target is a positive (1) or negative (0) example
 
-					//for current neighbor word, multiply their synpos * synneg, and sum all products
-					//compute dot-product between input word weights (SynPos) and output word weights (SynNeg)
-					double Product = 0;
-					for (int i = 0; i < Dimensions; i++)
-					{
-						Product += Neu1V[i] * SynNeg(Target,i);
-					}
+						//for current neighbor word, multiply their synpos * synneg, and sum all products
+						//compute dot-product between input word weights (SynPos) and output word weights (SynNeg)
+						double Product = 0;
+						for (int i = 0; i < Dimensions; i++)
+						{
+							Product += Neu1V[i] * SynNeg(Target,i);
+						}
 
-					//compute the error at the output, store in Grad
-					//subtract network output from desired output, and multiply by learning rate
-					double Grad;                     //Gradient multiplied by learning rate
-					if (Product > MaxExp) { Grad = (Label - 1) * Alpha; }
-					else if (Product < -MaxExp) { Grad = Label * Alpha; }
-					else
-					{
-						double Exp = ExpTable[static_cast<int>(Product*ExpTablePrecision)+TableSize/2];
-						Grad = (Label - 1 + 1 / (1 + Exp)) * Alpha;
-					}
+						//compute the error at the output, store in Grad
+						//subtract network output from desired output, and multiply by learning rate
+						double Grad;                     //Gradient multiplied by learning rate
+						if (Product > MaxExp) { Grad = (Label - 1) * Alpha; }
+						else if (Product < -MaxExp) { Grad = Label * Alpha; }
+						else
+						{
+							double Exp = ExpTable[static_cast<int>(Product*ExpTablePrecision)+TableSize/2];
+							Grad = (Label - 1 + 1 / (1 + Exp)) * Alpha;
+						}
 
-					//update vectors based on gradient (gradient calculation?)
-					for (int i = 0; i < Dimensions; i++)
-					{
-						//multiply error by output layer weights, accumulate over all negative samples
-						Neu1eV[i] += Grad * SynNeg(Target,i);
-						//update outer layer weights: multiply output error by hidden layer weights	
-						SynNeg(Target,i) += Grad * Neu1V[i];
+						//update vectors based on gradient (gradient calculation?)
+						for (int i = 0; i < Dimensions; i++)
+						{
+							//multiply error by output layer weights, accumulate over all negative samples
+							Neu1eV[i] += Grad * SynNeg(Target,i);
+						}
+						for (int i = 0; i < Dimensions; i++)
+						{
+							//update outer layer weights: multiply output error by hidden layer weights	
+							SynNeg(Target,i) += Grad * Neu1V[i];
+						}
 					}
 				}
 
@@ -357,9 +366,9 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 					//update hidden weight
 					for (int i = 0; i < Dimensions; i++)
 					{
-						if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
-							SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];	//embedding update
-						printf("%lf\n", CurrSticky * Neu1eV[i]);
+						//if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
+						SynPos(CurrWord,i) += (CurrSticky * Neu1eV[i]);	//embedding update
+						//printf("%lf\n", CurrSticky * Neu1eV[i]);
 					}
 				}
 			}
@@ -430,13 +439,31 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 						Grad = (Label - 1 + 1 / (1 + Exp)) * Alpha;
 					}
 
+					//printf("error %lf\n", Grad);
+
 					//update vectors based on gradient (gradient calculation?)
 					for (int i = 0; i < Dimensions; i++)
 					{
 						//multiply error by output layer weights, accumulate over all negative samples
+						float temp1 = Neu1eV[i];
 						Neu1eV[i] += Grad * SynNeg(Target,i);
 						//update outer layer weights: multiply output error by hidden layer weights	
+						float temp2 = SynNeg(Target,i);
 						SynNeg(Target,i) += Grad * SynPos(CurrWord,i);	
+
+						/*
+						printf("gradient update Neu1eV %lf->%lf  ", temp1, Neu1eV[i]);//, SynNeg %lf->%lf, \n", temp1, Neu1eV[i], temp2, SynNeg(Target,i));
+						if (temp1 > Neu1eV[i])
+							printf("decreasing \n");
+						else
+							printf("increasing \n");
+						*/
+						/*
+						if (temp2 > SynNeg(Target,i))
+							printf("decreasing\n");
+						else
+							printf("increasing\n");
+						*/
 					}
 				}
 
@@ -459,10 +486,10 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 				//update hidden weight
 				for (int i = 0; i < Dimensions; i++)
 				{
-					if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
-						SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];		//this is where the embedding gets updated
+					//if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
+					SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];		//this is where the embedding gets updated
 																			//but only update if result is non-negative
-						printf("add %f to word %d\n", CurrSticky * Neu1eV[i], CurrWord);
+						//printf("add %f to word %d\n", CurrSticky * Neu1eV[i], CurrWord);
 				}
 			}
 		}
@@ -555,7 +582,7 @@ void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 	}
 
 	int64 WordCntAll = 0;
-	double Alpha = StartAlpha;                              //learning rate
+	double Alpha = ((Cbow) ? StartAlphaCBOW : StartAlphaSkip);                              //learning rate
 // op RS 2016/09/26, collapse does not compile on Mac OS X
 //#pragma omp parallel for schedule(dynamic) collapse(2)
 	//loop number of SGD iterations

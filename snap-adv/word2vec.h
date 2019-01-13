@@ -17,6 +17,7 @@ const int TableSize = MaxExp*ExpTablePrecision*2;
 const int NegSamN = 5;
 
 //Learning rate for SGD. Value taken from original word2vec code.
-const double StartAlpha = 0.025;
+const double StartAlphaSkip = 0.025;
+const double StartAlphaCBOW = 0.05;
 
 #endif //WORD_2_VEC_H
