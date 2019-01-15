@@ -26,9 +26,9 @@ void ParseArgs(int& argc, char* argv[], TStr& InFile, TStr& OutFile,
 	"Number of epochs in SGD. Default is 1");
 	Verbose = Env.IsArgStr("-v", "Verbose output.");
 	Sticky = Env.IsArgStr("-s", "Using \"sticky\" factor.");
-	Cbow = Env.IsArgStr("-cbow", "Using CBOW for model training.");
+	Cbow = Env.IsArgStr("-cbow", "Use CBOW for model training. Default is skip-gram.");
 	if (Cbow == false)
-		printf("Using skip-gram for model training.");
+		printf("Using skip-gram for model training.\n");
 	if (InitInFile.Len() != 0)
 		printf("Using node-specific initial embeddings.\n");
 	if (DefaultEmbFile.Len() != 0)
