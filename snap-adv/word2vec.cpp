@@ -208,7 +208,7 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 		WalkV[j] = WalksVV(CurrWalk,j); 
 		//printf("%d ", WalkV[j]);
 	}
-	//printf(" (len %d)", WalkV.Len());
+	//printf(" (len %d)\n", WalkV.Len());
 
 	//loop nodes/words in current walk
 	for (int64 WordI=0; WordI<WalkV.Len(); WordI++)
@@ -509,6 +509,7 @@ void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 	int64 NNodes = 0;	//node counter
 
 	//renaming nodes into consecutive numbers (because reasons)
+	//printf("Renaming words\n");
 	for (int i = 0; i < WalksVV.GetXDim(); i++)
 	{
 		for (int64 j = 0; j < WalksVV.GetYDim(); j++) 
@@ -522,7 +523,7 @@ void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 			else
 			{
 				RnmH.AddDat(WalksVV(i,j),NNodes);
-				//printf("%d -> %d\n", WalksVV(i,j), NNodes);
+				//printf("   %d -> %d\n", WalksVV(i,j), NNodes);
 				RnmBackH.AddDat(NNodes,WalksVV(i, j));
 				WalksVV(i, j) = NNodes++;		//reset to newly assigned hash key, move to next
 			}
