@@ -368,7 +368,8 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 					{
 						//if (SynPos(CurrWord,i) + (CurrSticky * Neu1eV[i]) > 0)
 						SynPos(CurrWord,i) += (CurrSticky * Neu1eV[i]);	//embedding update
-						//printf("%lf\n", CurrSticky * Neu1eV[i]);
+						//if (CurrSticky > 0)
+						//	printf("cbow add %lf\n", CurrSticky * Neu1eV[i]);
 					}
 				}
 			}
@@ -490,6 +491,8 @@ void TrainModel(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 					SynPos(CurrWord,i) += CurrSticky * Neu1eV[i];		//this is where the embedding gets updated
 																			//but only update if result is non-negative
 						//printf("add %f to word %d\n", CurrSticky * Neu1eV[i], CurrWord);
+					//if (CurrSticky > 0)
+					//		printf("   skip-gram add %lf (dimension %d word %d offset %d)\n", CurrSticky * Neu1eV[i], i, CurrWord, a);
 				}
 			}
 		}
@@ -591,16 +594,20 @@ void LearnEmbeddings(TVVec<TInt, int64>& WalksVV, const int& Dimensions,
 	{
 //#pragma omp parallel for schedule(dynamic)		PUT THIS BACK!!!
 		//loop walks
+		//double temp = SynPos(1,0);
 		for (int64 i = 0; i < WalksVV.GetXDim(); i++)
 		{
 			//for each walk, train the model
 			//arguments: vector of walks, embedding dimensions, context size, SGD iterations, verbose flag
 			//ktable, unigram table, wordcount, exptable, learning rate alpha, randomizer, 
 			//synneg (all 0, one per embedding pos), synpos (random values, one per embedding val)
+			
 			TrainModel(WalksVV, Dimensions, WinSize, Iter, Verbose, KTable, UTable,
 			 WordCntAll, ExpTable, Alpha, i, Rnd, SynNeg, SynPos, StickyFactorsH, RnmBackH, Cbow); 
 			//this updates embeddings based on the current walk given to the function
+			//printf("iter %d walk %d: %lf -> %lf, delta %lf\n", j, i, temp, SynPos(1,0), temp - SynPos(1,0));
 		}
+		//printf("iter %d : %lf -> %lf, delta %lf\n", j, temp, SynPos(1,0), SynPos(1,0) - temp);
 	}
 
 	//loop node rows
