@@ -141,7 +141,7 @@ void InitPosEmb(TIntV& Vocab, const int& Dimensions, TRnd& Rnd, TVVec<TFlt, int6
 {
 	float junk = Rnd.GetUniDev();	//prime the randomizer - this does seem to make a difference!
 
-	printf("Initializing embeddings...\n");
+	//printf("Initializing embeddings...\n");
 	SynPos = TVVec<TFlt, int64>(Vocab.Len(),Dimensions);
 
 	for (int64 i = 0; i < SynPos.GetXDim(); i++)	//loop nodes/words
@@ -171,7 +171,7 @@ void InitPosEmb(TIntV& Vocab, const int& Dimensions, TRnd& Rnd, TVVec<TFlt, int6
 				//first part gets random value 0-1, multiply to get value 0-2, subtract to get -1 to 1
 				//second part computes max variation for this field: variability percentage * default value
 				SynPos(i,j) = DefaultEmbeddingV[j] + ((2 * Rnd.GetUniDev() - 1.0) * (EmbeddingVariabilityV[j] * DefaultEmbeddingV[j]));
-				printf("   %d %lf\n", orig_id, SynPos(i,j));
+				//printf("   %d %lf\n", orig_id, SynPos(i,j));
 				
 			}
 			//no initial value and no custom defaults, use standard word2vec initialization behavior
@@ -179,7 +179,7 @@ void InitPosEmb(TIntV& Vocab, const int& Dimensions, TRnd& Rnd, TVVec<TFlt, int6
 			{
 				//random values, ranging -.5/dimensions to 0.5/dimensions (all near 0)
 				SynPos(i,j) =(Rnd.GetUniDev()-0.5)/Dimensions;
-				printf("   %d %lf\n", orig_id, SynPos(i,j));	
+				//printf("   %d %lf\n", orig_id, SynPos(i,j));	
 			}
 		}
 		//printf("\n");
